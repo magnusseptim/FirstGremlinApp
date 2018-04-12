@@ -13,7 +13,8 @@ namespace FirstGremlinApp
     {
         private string endpoint;
         private string authKey;
-        public Database ActiveDatabase { get; set; }
+        public Database ActiveDatabase { get; private set; }
+        public DocumentCollection ActiveCollection { get; private set; }
         private DocumentClient client;
 
         public GremlinClient(string endpoint = "", string authKey = "")
@@ -37,6 +38,23 @@ namespace FirstGremlinApp
                 db = new ResourceResponse<Database>(); 
             }
             return db;
+        }
+
+        public async Task<ResourceResponse<DocumentCollection>> CreateGraphCollection(string dbName = "graphdb", string collectionName = "graphcollz", int defaultOfferThroughput = 1000)
+        {
+            ResourceResponse<DocumentCollection> collection;
+            try
+            {
+                collection = await client.CreateDocumentCollectionIfNotExistsAsync(
+                                            UriFactory.CreateDatabaseUri(dbName),
+                                            new DocumentCollection { Id = collectionName },
+                                            new RequestOptions { OfferThroughput = defaultOfferThroughput });
+            }
+            catch (Exception)
+            {
+                collection = new ResourceResponse<DocumentCollection>();
+            }
+            return collection;
         }
     }
 }
