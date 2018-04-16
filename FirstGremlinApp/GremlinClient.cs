@@ -1,11 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
+using Microsoft.Azure.Documents.Linq;
 using Microsoft.Azure.Graphs;
+using Microsoft.Azure.Graphs.Elements;
 
 namespace FirstGremlinApp
 {
@@ -13,6 +16,7 @@ namespace FirstGremlinApp
     {
         private string endpoint;
         private string authKey;
+        private IList<Vertex> Vertexes;
         public Database ActiveDatabase { get; private set; }
         public DocumentCollection ActiveCollection { get; private set; }
         private DocumentClient client;
@@ -22,6 +26,7 @@ namespace FirstGremlinApp
             this.endpoint = endpoint;
             this.authKey = authKey;
             this.client = new DocumentClient(new Uri(endpoint), authKey);
+            this.Vertexes = new List<Vertex>();
         }
         
 
@@ -55,6 +60,23 @@ namespace FirstGremlinApp
                 collection = new ResourceResponse<DocumentCollection>();
             }
             return collection;
+        }
+
+        public async void CreateVertex(DocumentCollection graphCollection, string query)
+        {
+            IDocumentQuery<Vertex> createdVertexQuery;
+            try
+            {
+                createdVertexQuery = client.CreateGremlinQuery<Vertex>(graphCollection, query);
+                while (createdVertexQuery.HasMoreResults)
+                {
+                    Vertexes.Add((await createdVertexQuery.ExecuteNextAsync<Vertex>()).First());
+                }
+            }
+            catch (Exception)
+            {
+                throw new Exception("No vertex was retrieved");
+            }
         }
     }
 }
