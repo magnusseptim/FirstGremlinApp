@@ -10,4 +10,19 @@
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="4.4.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Update="Storage\PrefabQueries.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>PrefabQueries.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Storage\PrefabQueries.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>PrefabQueries.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+
 </Project>

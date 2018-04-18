@@ -2,8 +2,11 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
+using System.Reflection;
+using System.Resources;
 using System.Text;
 using System.Threading.Tasks;
+using FirstGremlinApp.Tools;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Microsoft.Azure.Documents.Linq;
@@ -16,17 +19,18 @@ namespace FirstGremlinApp
     {
         private string endpoint;
         private string authKey;
-        private IList<Vertex> Vertexes;
+        private GraphElementsStorage graphElementsStorages;
         public Database ActiveDatabase { get; private set; }
         public DocumentCollection ActiveCollection { get; private set; }
         private DocumentClient client;
+        private ResourceManager resManager;
 
         public GremlinClient(string endpoint = "", string authKey = "")
         {
             this.endpoint = endpoint;
             this.authKey = authKey;
             this.client = new DocumentClient(new Uri(endpoint), authKey);
-            this.Vertexes = new List<Vertex>();
+            this.resManager = new ResourceManager("PrefabQueries", Assembly.GetExecutingAssembly());
         }
         
 
@@ -62,21 +66,56 @@ namespace FirstGremlinApp
             return collection;
         }
 
-        public async void CreateVertex(DocumentCollection graphCollection, string query)
+        public async void CreateGraphElement<T>(DocumentCollection graphCollection, string query)
         {
-            IDocumentQuery<Vertex> createdVertexQuery;
+            IDocumentQuery<T> createdVertexQuery;
             try
             {
-                createdVertexQuery = client.CreateGremlinQuery<Vertex>(graphCollection, query);
+                createdVertexQuery = client.CreateGremlinQuery<T>(graphCollection, query);
                 while (createdVertexQuery.HasMoreResults)
                 {
-                    Vertexes.Add((await createdVertexQuery.ExecuteNextAsync<Vertex>()).First());
+
+                    this.graphElementsStorages.AddElementToStorage((await createdVertexQuery.ExecuteNextAsync<T>()).First());
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                throw new Exception("No vertex was retrieved");
+                throw new Exception(string.Format("Gremlin says that this: {0} was happend", ex.Message));
             }
+        }
+
+        public IDocumentQuery<T> RunGremlinQueryManualy<T>(DocumentCollection collection, string query)
+        {
+            IDocumentQuery<T> queryResult;
+            try
+            {
+                queryResult = client.CreateGremlinQuery<T>(collection, query);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(string.Format("Gremlin says that something wrong had place here: {0}", ex.Message));
+            }
+
+            return queryResult;
+        }
+
+        public async Task<IList<Vertex>> CreateVertex(DocumentCollection graphCollection, string vertexName)
+        {
+            IList<Vertex> vertexes = new List<Vertex>();
+            try
+            {
+                var response = client.CreateGremlinQuery<Vertex>(graphCollection, string.Format(resManager.GetString("CreateVertex"), vertexName));
+                while (response.HasMoreResults)
+                {
+                     vertexes.Add((await response.ExecuteNextAsync<Vertex>()).First());
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(string.Format("Gremlin says that this: {0} was happend", ex.Message));
+            }
+
+            return vertexes;
         }
     }
 }
