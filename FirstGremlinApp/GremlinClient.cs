@@ -1,17 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Resources;
 using System.Text;
 using System.Threading.Tasks;
+using FirstGremlinApp.Model;
 using FirstGremlinApp.Tools;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Microsoft.Azure.Documents.Linq;
 using Microsoft.Azure.Graphs;
 using Microsoft.Azure.Graphs.Elements;
+using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json.Linq;
 
 namespace FirstGremlinApp
 {
@@ -23,14 +28,18 @@ namespace FirstGremlinApp
         public Database ActiveDatabase { get; private set; }
         public DocumentCollection ActiveCollection { get; private set; }
         private DocumentClient client;
-        private ResourceManager resManager;
+        private IConfigurationRoot configuration;
+        private JToken jToken = JToken.Parse(File.ReadAllText(Path.Combine(Environment.CurrentDirectory, "appsettings.json")));
+
 
         public GremlinClient(string endpoint = "", string authKey = "")
         {
             this.endpoint = endpoint;
             this.authKey = authKey;
             this.client = new DocumentClient(new Uri(endpoint), authKey);
-            this.resManager = new ResourceManager("PrefabQueries", Assembly.GetExecutingAssembly());
+            this.configuration = new ConfigurationBuilder().SetBasePath(Directory.GetCurrentDirectory())
+                                                           .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                                                           .Build();
         }
         
 
@@ -99,15 +108,45 @@ namespace FirstGremlinApp
             return queryResult;
         }
 
-        public async Task<IList<Vertex>> CreateVertex(DocumentCollection graphCollection, string vertexName)
+        public async Task<IList<Vertex>> CreateEmptyVertex(DocumentCollection graphCollection, string vertexName)
         {
-            IList<Vertex> vertexes = new List<Vertex>();
+            return await CreateElement<Vertex>(graphCollection, new string[] { vertexName }, "CreateVertex");
+        }
+        public async Task<IList<Edge>> CreateEdge(DocumentCollection graphCollection, string edgeName, string fromVName, string toVName)
+        {
+            return await CreateElement<Edge>(graphCollection, new string[] { fromVName, edgeName, toVName }, "AddEdgeBetween");
+        }
+
+        public async Task<IList<Vertex>> CreateVertex(DocumentCollection graphCollection, string vertexName, List<KeyValuePair<string,string>> properties)
+        {
+            return await CreateElement<Vertex>(graphCollection, new string[] { vertexName }, "CreateVertex");
+        }
+
+        public string BuildGremlinQuery(List<KeyValuePair<string, string[]>> commands)
+        {
+            StringBuilder sb = new StringBuilder();
+            foreach (var command in commands)
+            {
+                sb.AppendJoin("", string.Format(command.Key, command.Value));
+            }
+            return sb.ToString();
+        }
+        private async Task<IList<T>> CreateElement<T>(DocumentCollection graphCollection, string[] queryValues, string queryName)
+        {
+
+            IList<T> list = new List<T>();
             try
             {
-                var response = client.CreateGremlinQuery<Vertex>(graphCollection, string.Format(resManager.GetString("CreateVertex"), vertexName));
+                var value = configuration.GetSection("configuration");
+                var query = ((List<Setting>)jToken["configuration"]["appSettings"].ToObject(typeof(List<Setting>)))
+                                                                                  .Where(x => x.Name == "queryName")
+                                                                                  .First()
+                                                                                  .Value;
+
+                var response = client.CreateGremlinQuery<T>(graphCollection, string.Format(query, queryValues));
                 while (response.HasMoreResults)
                 {
-                     vertexes.Add((await response.ExecuteNextAsync<Vertex>()).First());
+                    list.Add((await response.ExecuteNextAsync<T>()).First());
                 }
             }
             catch (Exception ex)
@@ -115,7 +154,7 @@ namespace FirstGremlinApp
                 throw new Exception(string.Format("Gremlin says that this: {0} was happend", ex.Message));
             }
 
-            return vertexes;
+            return list;
         }
     }
 }
