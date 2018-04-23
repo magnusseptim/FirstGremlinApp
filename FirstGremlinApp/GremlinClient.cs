@@ -75,22 +75,25 @@ namespace FirstGremlinApp
             return collection;
         }
 
-        public async void CreateGraphElement<T>(DocumentCollection graphCollection, string query)
+        public async Task<IList<T>> CreateGraphElement<T>(DocumentCollection graphCollection, string query)
         {
-            IDocumentQuery<T> createdVertexQuery;
+            IList<T> list = new List<T>();
             try
             {
-                createdVertexQuery = client.CreateGremlinQuery<T>(graphCollection, query);
+                IDocumentQuery<T> createdVertexQuery = client.CreateGremlinQuery<T>(graphCollection, query);
                 while (createdVertexQuery.HasMoreResults)
                 {
-
-                    this.graphElementsStorages.AddElementToStorage((await createdVertexQuery.ExecuteNextAsync<T>()).First());
+                    var result = (await createdVertexQuery.ExecuteNextAsync<T>()).First();
+                    list.Add(result);
+                    this.graphElementsStorages.AddElementToStorage(result);
                 }
             }
             catch (Exception ex)
             {
                 throw new Exception(string.Format("Gremlin says that this: {0} was happend", ex.Message));
             }
+
+            return list; 
         }
 
         public IDocumentQuery<T> RunGremlinQueryManualy<T>(DocumentCollection collection, string query)
@@ -116,11 +119,17 @@ namespace FirstGremlinApp
         {
             return await CreateElement<Edge>(graphCollection, new string[] { fromVName, edgeName, toVName }, "AddEdgeBetween");
         }
-
-        public async Task<IList<Vertex>> CreateVertex(DocumentCollection graphCollection, string vertexName, List<KeyValuePair<string,string>> properties)
+        public async Task<IList<Vertex>> CreateVertex(DocumentCollection graphCollection, string vertexName, List<KeyValuePair<string,List<string>>> properties)
         {
-            return await CreateElement<Vertex>(graphCollection, new string[] { vertexName }, "CreateVertex");
+            string completeQuery = "";
+            foreach (var pair in properties)
+            {
+                completeQuery = completeQuery + string.Format(pair.Key, pair.Value);
+            }
+
+            return await CreateGraphElement<Vertex>(graphCollection, completeQuery);
         }
+
 
         public string BuildGremlinQuery(List<KeyValuePair<string, string[]>> commands)
         {
@@ -137,13 +146,7 @@ namespace FirstGremlinApp
             IList<T> list = new List<T>();
             try
             {
-                var value = configuration.GetSection("configuration");
-                var query = ((List<Setting>)jToken["configuration"]["appSettings"].ToObject(typeof(List<Setting>)))
-                                                                                  .Where(x => x.Name == "queryName")
-                                                                                  .First()
-                                                                                  .Value;
-
-                var response = client.CreateGremlinQuery<T>(graphCollection, string.Format(query, queryValues));
+                var response = client.CreateGremlinQuery<T>(graphCollection, string.Format(GetSpecificQuery(queryName), queryValues));
                 while (response.HasMoreResults)
                 {
                     list.Add((await response.ExecuteNextAsync<T>()).First());
@@ -155,6 +158,17 @@ namespace FirstGremlinApp
             }
 
             return list;
+        }
+
+       
+
+
+        private string GetSpecificQuery(string queryName, string confSecName = "configuration", string appSettName = "appSettings")
+        {
+            return ((List<Setting>)jToken[confSecName][appSettName].ToObject(typeof(List<Setting>)))
+                                                                   .Where(x => x.Name == queryName)
+                                                                   .First()
+                                                                   .Value;
         }
     }
 }
