@@ -57,7 +57,6 @@ namespace FirstGremlinApp
             }
             return db;
         }
-
         public async Task<ResourceResponse<DocumentCollection>> CreateGraphCollection(string dbName = "graphdb", string collectionName = "graphcollz", int defaultOfferThroughput = 1000)
         {
             ResourceResponse<DocumentCollection> collection;
@@ -74,7 +73,6 @@ namespace FirstGremlinApp
             }
             return collection;
         }
-
         public async Task<IList<T>> CreateGraphElement<T>(DocumentCollection graphCollection, string query)
         {
             IList<T> list = new List<T>();
@@ -95,7 +93,6 @@ namespace FirstGremlinApp
 
             return list; 
         }
-
         public IDocumentQuery<T> RunGremlinQueryManualy<T>(DocumentCollection collection, string query)
         {
             IDocumentQuery<T> queryResult;
@@ -110,14 +107,13 @@ namespace FirstGremlinApp
 
             return queryResult;
         }
-
         public async Task<IList<Vertex>> CreateEmptyVertex(DocumentCollection graphCollection, string vertexName)
         {
-            return await CreateElement<Vertex>(graphCollection, new string[] { vertexName }, "CreateVertex");
+            return await RunGremlinQuery<Vertex>(graphCollection, new string[] { vertexName }, "CreateVertex");
         }
         public async Task<IList<Edge>> CreateEdge(DocumentCollection graphCollection, string edgeName, string fromVName, string toVName)
         {
-            return await CreateElement<Edge>(graphCollection, new string[] { fromVName, edgeName, toVName }, "AddEdgeBetween");
+            return await RunGremlinQuery<Edge>(graphCollection, new string[] { fromVName, edgeName, toVName }, "AddEdgeBetween");
         }
         public async Task<IList<Vertex>> CreateVertex(DocumentCollection graphCollection, string vertexName, List<KeyValuePair<string,List<string>>> properties)
         {
@@ -129,8 +125,14 @@ namespace FirstGremlinApp
 
             return await CreateGraphElement<Vertex>(graphCollection, completeQuery);
         }
-
-
+        public async Task<IList<Vertex>> DropVertex(DocumentCollection graphCollection, string vertexName)
+        {
+            return await RunGremlinQuery<Vertex>(graphCollection, new string[] { vertexName }, "DropVertex");
+        }
+        public async Task<IList<Edge>> DropEdge(DocumentCollection graphCollection, string edgeName)
+        {
+            return await RunGremlinQuery<Edge>(graphCollection, new string[] { edgeName }, "DropEdge");
+        }
         public string BuildGremlinQuery(List<KeyValuePair<string, string[]>> commands)
         {
             StringBuilder sb = new StringBuilder();
@@ -140,7 +142,7 @@ namespace FirstGremlinApp
             }
             return sb.ToString();
         }
-        private async Task<IList<T>> CreateElement<T>(DocumentCollection graphCollection, string[] queryValues, string queryName)
+        private async Task<IList<T>> RunGremlinQuery<T>(DocumentCollection graphCollection, string[] queryValues, string queryName)
         {
 
             IList<T> list = new List<T>();
@@ -159,9 +161,6 @@ namespace FirstGremlinApp
 
             return list;
         }
-
-       
-
 
         private string GetSpecificQuery(string queryName, string confSecName = "configuration", string appSettName = "appSettings")
         {
