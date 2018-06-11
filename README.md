@@ -1,2 +1,2 @@
 # FirstGremlinApp
-My first simple Azure Cosmos DB Gremlin app
+Simple Azure Cosmos DB Gremlin app
